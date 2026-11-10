@@ -80,6 +80,7 @@
 <main id="ecran-login" class="centre" hidden>
   <h1>PUR CHARITY</h1>
   <button class="btn" id="btn-login">Se connecter avec Twitch</button>
+  <p id="erreur" role="alert" style="color:#ffb3d9;max-width:34rem"></p>
 </main>
 
 <!-- Accès refusé -->
@@ -287,6 +288,7 @@ async function demarrer() {
     if (h.get("state") && h.get("state") === attendu) token = h.get("access_token");
     history.replaceState(null, "", location.pathname);
     if (token) { try { sessionStorage.setItem("twitch_token", token); } catch (e) {} }
+    else { montrer("ecran-login"); $("erreur").textContent = "La connexion Twitch n'a pas pu être vérifiée (navigateur qui bloque le stockage ?). Réessaie."; return; }
   } else {
     try { token = sessionStorage.getItem("twitch_token"); } catch (e) {}
   }
@@ -303,6 +305,7 @@ async function demarrer() {
   } catch (e) {
     if (e.status === 403) return montrer("ecran-refuse");
     deconnexion();
+    $("erreur").textContent = "Erreur : " + (e.message || e) + (e.status ? " (code " + e.status + ")" : "");
   }
 }
 

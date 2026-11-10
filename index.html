@@ -63,6 +63,13 @@
   .barre h3 { margin:0; font-weight:400; }
   .lecteur { aspect-ratio:16/9; width:100%; display:block; border:0; background:#000; }
   .vide { aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; padding:1rem; text-align:center; color:var(--pur); }
+  .info { padding:2rem 1.6rem; display:flex; flex-direction:column; align-items:center; gap:1.5rem; text-align:center; font-size:1.25rem; line-height:1.5; }
+  #info { width:min(560px,92vw); }
+  .ma-video { max-width:560px; margin:1rem auto 2rem; padding:1.4rem; text-align:center; border:2px solid var(--pur); border-radius:16px; background:rgba(20,1,42,.7); display:grid; gap:.9rem; justify-items:center; }
+  .ma-video h2 { margin:0; font-weight:400; font-size:1.4rem; }
+  .ma-video input { max-width:100%; font:inherit; }
+  .rang { display:flex; gap:.7rem; flex-wrap:wrap; justify-content:center; }
+  .a-video .avatar { border-color:#fff; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -90,6 +97,16 @@
     <hr>
   </header>
   <main class="conteneur" id="app"></main>
+  <section class="ma-video">
+    <h2>Ma vidéo pour madamepoulpy</h2>
+    <p>Envoie une petite vidéo (mp4 ou webm, 40 Mo maximum).</p>
+    <input type="file" id="fichier" accept="video/mp4,video/webm">
+    <div class="rang">
+      <button class="btn" id="btn-envoyer" type="button">Envoyer ma vidéo</button>
+      <button class="btn sec" id="btn-suppr" type="button">Supprimer ma vidéo</button>
+    </div>
+    <p id="statut" role="status"></p>
+  </section>
   <div class="bas"><button class="btn sec" id="btn-logout">Se déconnecter</button></div>
   <footer>
     <p>100 % des dons sont reversés à l'association <a href="https://lesptitsdoudous.org/" target="_blank" rel="noopener">Les P'tits Doudous</a>.</p>
@@ -97,15 +114,25 @@
   </footer>
 </div>
 
+<dialog id="info">
+  <div class="info">
+    <p>Ceci n'est pas un site de Charity Master, en réalité c'est pour que vous puissiez laisser une petite vidéo pour madamepoulpy et lui faire une surprise lors de son live débrief !</p>
+    <button class="btn" id="btn-info">J'ai compris</button>
+  </div>
+</dialog>
+
 <dialog id="modale">
   <div class="barre"><h3 id="modale-titre"></h3><button class="btn sec" id="btn-fermer">Fermer</button></div>
   <div id="modale-lecteur"></div>
 </dialog>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 /* ============ À MODIFIER ============ */
 const TWITCH_CLIENT_ID = "zspgwjxcj4oly6g81eha8gsdixxkrv";
 const REDIRECT_URI = location.origin + location.pathname;   // identique à l'URL enregistrée sur dev.twitch.tv
+const SUPABASE_URL = "https://vnlwtfbuppkrryfhxdhn.supabase.co";        // ex : https://abcdxyz.supabase.co
+const SUPABASE_ANON_KEY = "sb_publishable_nV_JTaauGwbJjx9_j3v0uw_D73hMssT";      // clé publique "anon" / "publishable"
 const BLOQUES = ["madamepoulpy_"];                          // pseudos Twitch refusés (en minuscules)
 
 /* n = pseudo Twitch, label = nom affiché (facultatif),
@@ -134,6 +161,18 @@ const SECTIONS = [
 const $ = id => document.getElementById(id);
 const ECRANS = ["ecran-login", "ecran-refuse", "ecran-site"];
 const montrer = id => ECRANS.forEach(e => $(e).hidden = e !== id);
+
+let TOKEN = null, VIDEOS = {};
+async function appel(action, extra) {
+  const r = await fetch(SUPABASE_URL + "/functions/v1/twitch-videos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, token: TOKEN, ...extra })
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(data.error || "erreur"); e.status = r.status; throw e; }
+  return data;
+}
 
 /* coeurs flottants */
 (function () {
@@ -168,6 +207,7 @@ function creerCarte(s) {
   nom.className = "nom";
   nom.textContent = affiche;
   b.append(av, nom);
+  if (VIDEOS[s.n.toLowerCase()]) b.classList.add("a-video");
   b.onclick = () => ouvrirVideo(s, affiche);
   return b;
 }
@@ -197,18 +237,19 @@ function ouvrirVideo(s, affiche) {
   $("modale-titre").textContent = affiche;
   const zone = $("modale-lecteur");
   zone.innerHTML = "";
+  const url = VIDEOS[s.n.toLowerCase()];
   let el;
-  if (!s.video) {
+  if (!url) {
     el = document.createElement("div");
     el.className = "vide";
     el.textContent = "La vidéo de " + affiche + " arrive bientôt.";
-  } else if (/\.(mp4|webm)$/i.test(s.video)) {
+  } else if (/\.(mp4|webm)(\?|$)/i.test(url)) {
     el = document.createElement("video");
-    el.className = "lecteur"; el.controls = true; el.autoplay = true; el.src = s.video;
+    el.className = "lecteur"; el.controls = true; el.autoplay = true; el.src = url;
   } else {
     el = document.createElement("iframe");
     el.className = "lecteur"; el.allow = "autoplay; fullscreen"; el.allowFullscreen = true;
-    el.src = s.video + (s.video.includes("?") ? "&" : "?") + "autoplay=1";
+    el.src = url;
   }
   zone.appendChild(el);
   $("modale").showModal();
@@ -225,6 +266,7 @@ function connexion() {
   });
 }
 function deconnexion() {
+  TOKEN = null; VIDEOS = {};
   try { sessionStorage.removeItem("twitch_token"); } catch (e) {}
   montrer("ecran-login");
 }
@@ -249,17 +291,60 @@ async function demarrer() {
     try { token = sessionStorage.getItem("twitch_token"); } catch (e) {}
   }
   if (!token) return montrer("ecran-login");
+  TOKEN = token;
   try {
     const login = await pseudoTwitch(token);
     if (BLOQUES.includes(login)) return montrer("ecran-refuse");
+    VIDEOS = (await appel("list")).videos;
     afficherSite();
-  } catch (e) { deconnexion(); }
+    let vu = false;
+    try { vu = sessionStorage.getItem("info_vue") === "1"; } catch (e) {}
+    if (!vu) $("info").showModal();
+  } catch (e) {
+    if (e.status === 403) return montrer("ecran-refuse");
+    deconnexion();
+  }
 }
 
 $("btn-login").onclick = connexion;
 $("btn-logout").onclick = deconnexion;
 $("btn-logout-refuse").onclick = deconnexion;
+/* envoi / suppression de sa propre vidéo */
+const statut = t => { $("statut").textContent = t; };
+async function envoyer() {
+  const f = $("fichier").files[0];
+  if (!f) return statut("Choisis d'abord une vidéo.");
+  if (f.size > 40 * 1024 * 1024) return statut("Vidéo trop lourde (40 Mo maximum).");
+  const ext = f.type === "video/webm" ? "webm" : f.type === "video/mp4" ? "mp4" : null;
+  if (!ext) return statut("Format accepté : mp4 ou webm.");
+  statut("Envoi en cours…");
+  $("btn-envoyer").disabled = true;
+  try {
+    const { path, token } = await appel("upload-url", { ext });
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { error } = await sb.storage.from("videos").uploadToSignedUrl(path, token, f, { contentType: f.type });
+    if (error) throw error;
+    VIDEOS = (await appel("list")).videos;
+    afficherSite();
+    statut("Vidéo envoyée !");
+  } catch (e) { statut("Échec de l'envoi : " + (e.message || "réessaie")); }
+  $("btn-envoyer").disabled = false;
+}
+async function supprimer() {
+  statut("Suppression…");
+  try {
+    await appel("delete");
+    VIDEOS = (await appel("list")).videos;
+    afficherSite();
+    statut("Vidéo supprimée.");
+  } catch (e) { statut("Échec : " + (e.message || "réessaie")); }
+}
+$("btn-envoyer").onclick = envoyer;
+$("btn-suppr").onclick = supprimer;
 $("btn-fermer").onclick = fermer;
+const infoVue = () => { try { sessionStorage.setItem("info_vue", "1"); } catch (e) {} };
+$("btn-info").onclick = () => { infoVue(); $("info").close(); };
+$("info").addEventListener("close", infoVue);
 $("modale").addEventListener("cancel", () => { $("modale-lecteur").innerHTML = ""; });
 demarrer();
 </script>

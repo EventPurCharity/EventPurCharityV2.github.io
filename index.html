@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon événement Twitch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --fond:#eef0fb; --encre:#1f1b4d; --accent:#ffd84d; --twitch:#9146ff; --carte:#fff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Fredoka',system-ui,sans-serif; background:var(--fond); color:var(--encre); min-height:100vh; }
+  .centre { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.2rem; padding:2rem; text-align:center; }
+  h1 { font-size:clamp(2rem,6vw,3.5rem); margin:0; }
+  p { margin:0; max-width:36ch; line-height:1.5; }
+  .btn { background:var(--twitch); color:#fff; border:0; border-radius:999px; padding:.9rem 1.8rem; font:inherit; font-weight:600; font-size:1.1rem; cursor:pointer; }
+  .btn:focus-visible, .carte:focus-visible, .fermer:focus-visible { outline:3px solid var(--encre); outline-offset:3px; }
+  .btn.clair { background:var(--accent); color:var(--encre); }
+  header { padding:2rem 1.5rem 0; text-align:center; }
+  .grille { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:1.2rem; padding:2rem 1.5rem 3rem; max-width:1100px; margin:0 auto; }
+  .carte { background:var(--carte); border:0; border-radius:18px; padding:1.2rem 1rem; font:inherit; color:inherit; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:.7rem; }
+  .carte:hover { background:var(--accent); }
+  .carte img { width:96px; height:96px; border-radius:50%; object-fit:cover; background:var(--fond); }
+  .carte span { font-weight:600; }
+  dialog { border:0; border-radius:18px; padding:0; width:min(900px,94vw); background:var(--encre); color:#fff; }
+  dialog::backdrop { background:rgba(31,27,77,.75); }
+  .barre { display:flex; justify-content:space-between; align-items:center; padding:.8rem 1.2rem; }
+  .fermer { background:var(--accent); border:0; border-radius:999px; padding:.4rem 1rem; font:inherit; font-weight:600; cursor:pointer; }
+  .lecteur { aspect-ratio:16/9; width:100%; display:block; border:0; background:#000; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+
+<!-- Écran 1 : connexion -->
+<main id="ecran-login" class="centre" hidden>
+  <h1>Bienvenue</h1>
+  <button class="btn" id="btn-login">Se connecter avec Twitch</button>
+</main>
+
+<!-- Écran 2 : accès refusé -->
+<main id="ecran-refuse" class="centre" hidden>
+  <h1>Accès refusé</h1>
+  <p>Tu n'es pas encore autorisé à rentrer sur ce site.</p>
+  <button class="btn clair" id="btn-logout-refuse">Changer de compte</button>
+</main>
+
+<!-- Écran 3 : le site -->
+<div id="ecran-site" hidden>
+  <header>
+    <h1>Les participants</h1>
+    <p style="margin:.5rem auto 0">Clique sur une personne pour lancer sa vidéo.</p>
+  </header>
+  <section class="grille" id="grille" aria-label="Liste des personnes"></section>
+  <div style="text-align:center;padding-bottom:2rem">
+    <button class="btn clair" id="btn-logout">Se déconnecter</button>
+  </div>
+</div>
+
+<dialog id="modale">
+  <div class="barre"><strong id="modale-titre"></strong><button class="fermer" id="btn-fermer">Fermer</button></div>
+  <div id="modale-lecteur"></div>
+</dialog>
+
+<script>
+/* ============ À MODIFIER ============ */
+const TWITCH_CLIENT_ID = "COLLE_TON_CLIENT_ID_ICI";
+// Doit être EXACTEMENT identique à l'URL de redirection enregistrée sur dev.twitch.tv
+const REDIRECT_URI = location.origin + location.pathname;
+
+// Pseudos Twitch (en minuscules) refusés
+const BLOQUES = ["madamepoulpy_"];
+
+// Une vidéo par personne : "video" = lien YouTube embed (https://www.youtube.com/embed/ID) ou fichier .mp4
+const PERSONNES = [
+  { nom: "Personne 1", photo: "img/personne1.jpg", video: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+  { nom: "Personne 2", photo: "img/personne2.jpg", video: "videos/personne2.mp4" },
+  { nom: "Personne 3", photo: "img/personne3.jpg", video: "https://www.youtube.com/embed/ID_VIDEO" }
+];
+/* ================================== */
+
+const $ = id => document.getElementById(id);
+const ecrans = ["ecran-login", "ecran-refuse", "ecran-site"];
+function montrer(id) { ecrans.forEach(e => $(e).hidden = (e !== id)); }
+
+function seDeconnecter() {
+  try { sessionStorage.removeItem("twitch_token"); } catch (e) {}
+  montrer("ecran-login");
+}
+
+function connexion() {
+  const state = crypto.randomUUID();
+  try { sessionStorage.setItem("twitch_state", state); } catch (e) {}
+  const url = "https://id.twitch.tv/oauth2/authorize?" + new URLSearchParams({
+    client_id: TWITCH_CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    response_type: "token",
+    scope: "",
+    state,
+    force_verify: "true"
+  });
+  location.href = url;
+}
+
+async function verifierUtilisateur(token) {
+  const r = await fetch("https://api.twitch.tv/helix/users", {
+    headers: { "Authorization": "Bearer " + token, "Client-Id": TWITCH_CLIENT_ID }
+  });
+  if (!r.ok) throw new Error("token invalide");
+  const data = await r.json();
+  return data.data[0].login.toLowerCase();
+}
+
+function afficherSite() {
+  const grille = $("grille");
+  grille.innerHTML = "";
+  PERSONNES.forEach(p => {
+    const b = document.createElement("button");
+    b.className = "carte";
+    b.innerHTML = '<img alt="" src="' + p.photo + '"><span></span>';
+    b.querySelector("span").textContent = p.nom;
+    b.onclick = () => ouvrirVideo(p);
+    grille.appendChild(b);
+  });
+  montrer("ecran-site");
+}
+
+function ouvrirVideo(p) {
+  $("modale-titre").textContent = p.nom;
+  const zone = $("modale-lecteur");
+  zone.innerHTML = "";
+  let el;
+  if (/\.(mp4|webm)$/i.test(p.video)) {
+    el = document.createElement("video");
+    el.controls = true; el.autoplay = true; el.src = p.video;
+  } else {
+    el = document.createElement("iframe");
+    el.allow = "autoplay; fullscreen"; el.allowFullscreen = true;
+    el.src = p.video + (p.video.includes("?") ? "&" : "?") + "autoplay=1";
+  }
+  el.className = "lecteur";
+  zone.appendChild(el);
+  $("modale").showModal();
+}
+
+function fermerVideo() {
+  $("modale").close();
+  $("modale-lecteur").innerHTML = ""; // coupe la vidéo
+}
+
+async function demarrer() {
+  let token = null;
+
+  // Retour de Twitch : le token est dans le # de l'URL
+  if (location.hash.includes("access_token")) {
+    const h = new URLSearchParams(location.hash.slice(1));
+    let attendu = null;
+    try { attendu = sessionStorage.getItem("twitch_state"); } catch (e) {}
+    if (h.get("state") && h.get("state") === attendu) token = h.get("access_token");
+    history.replaceState(null, "", location.pathname); // retire le token de l'URL
+    if (token) { try { sessionStorage.setItem("twitch_token", token); } catch (e) {} }
+  } else {
+    try { token = sessionStorage.getItem("twitch_token"); } catch (e) {}
+  }
+
+  if (!token) return montrer("ecran-login");
+
+  try {
+    const login = await verifierUtilisateur(token);
+    if (BLOQUES.includes(login)) return montrer("ecran-refuse");
+    afficherSite();
+  } catch (e) {
+    seDeconnecter();
+  }
+}
+
+$("btn-login").onclick = connexion;
+$("btn-logout").onclick = seDeconnecter;
+$("btn-logout-refuse").onclick = () => { seDeconnecter(); connexion(); };
+$("btn-fermer").onclick = fermerVideo;
+$("modale").addEventListener("cancel", () => { $("modale-lecteur").innerHTML = ""; });
+demarrer();
+</script>
+</body>
+</html>

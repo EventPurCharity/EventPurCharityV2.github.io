@@ -331,16 +331,19 @@ async function envoyer() {
   if (!ext) return statut("Format accepté : mp4 ou webm.");
   statut("Envoi en cours…");
   $("btn-envoyer").disabled = true;
+  let etape = "demande du lien au Worker";
   try {
     const { url } = await appel("upload-url", { ext });
+    etape = "envoi vers R2";
     const r = await fetch(url, { method: "PUT", headers: { "Content-Type": f.type }, body: f });
     if (!r.ok) throw new Error("envoi refusé (code " + r.status + ")");
+    etape = "confirmation";
     await appel("done", { ext });
     VIDEOS = (await appel("list")).videos;
     afficherSite();
     ouvrirVideo(COURANT.s, COURANT.affiche);
     statut("Vidéo envoyée !");
-  } catch (e) { statut("Échec de l'envoi : " + (e.message || "réessaie")); }
+  } catch (e) { statut("Échec (" + etape + ") : " + (e.message || "réessaie")); }
   $("btn-envoyer").disabled = false;
 }
 async function supprimer() {

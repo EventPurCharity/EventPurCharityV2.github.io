@@ -271,6 +271,11 @@ function connexion() {
     scope: "", state, force_verify: "true"
   });
 }
+/* personne non autorisée (bloquée ou absente de la liste) : redirection vers l'autre site */
+function refuser() {
+  try { sessionStorage.removeItem("twitch_token"); } catch (e) {}
+  location.replace("https://eventpurcharity.github.io/");
+}
 function deconnexion() {
   TOKEN = null; VIDEOS = {}; MOI = null;
   try { sessionStorage.removeItem("twitch_token"); } catch (e) {}
@@ -301,7 +306,7 @@ async function demarrer() {
   TOKEN = token;
   try {
     const login = await pseudoTwitch(token);
-    if (BLOQUES.includes(login)) return montrer("ecran-refuse");
+    if (BLOQUES.includes(login)) return refuser();
     MOI = login;
     VIDEOS = (await appel("list")).videos;
     afficherSite();
@@ -309,7 +314,7 @@ async function demarrer() {
     try { vu = sessionStorage.getItem("info_vue") === "1"; } catch (e) {}
     if (!vu) $("info").showModal();
   } catch (e) {
-    if (e.status === 403) return montrer("ecran-refuse");
+    if (e.status === 403) return refuser();
     deconnexion();
     $("erreur").textContent = "Erreur : " + (e.message || e) + (e.status ? " (code " + e.status + ")" : "");
   }

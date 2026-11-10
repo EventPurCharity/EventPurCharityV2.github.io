@@ -108,7 +108,7 @@
 
 <dialog id="info">
   <div class="info">
-    <p>Ceci n'est pas un site de Charity Master, en réalité c'est pour que vous puissiez laisser une petite vidéo pour madamepoulpy et lui faire une surprise lors de son live débrief ! (Vous pouvez upload votre vidéo directement sur le site en cliquant sur votre profile ! ) </p>
+    <p>Ceci n'est pas un site de Charity Master, en réalité c'est pour que vous puissiez laisser une petite vidéo pour madamepoulpy et lui faire une surprise lors de son live débrief !</p>
     <button class="btn" id="btn-info">J'ai compris</button>
   </div>
 </dialog>
@@ -138,6 +138,9 @@ const BLOQUES = ["madamepoulpy_"];                          // pseudos Twitch re
 /* n = pseudo Twitch, label = nom affiché (facultatif),
    video = lien YouTube "embed" ou fichier .mp4 (facultatif pour le moment) */
 const SECTIONS = [
+  { titre:"Staff", sansCompteur:true, liste:[
+    { n:"eclypsiiaa_", photo:"eclypsiiaa.png" }
+  ]},
   { titre:"Présentiel", liste:[
     { n:"jualkytv", label:"JualkyTV" }, { n:"azzuria_" }, { n:"weeny__" }, { n:"sahaku__" }, { n:"le_max__" },
     { n:"clodeau" }, { n:"genki42" }, { n:"laeticia_m", label:"Laeticia_M" }, { n:"aresia_v", label:"Aresia" }
@@ -200,7 +203,7 @@ function creerCarte(s) {
   img.alt = "";
   img.loading = "lazy";
   img.referrerPolicy = "no-referrer";
-  img.src = "https://unavatar.io/twitch/" + encodeURIComponent(s.n) + "?fallback=false";
+  img.src = s.photo || ("https://unavatar.io/twitch/" + encodeURIComponent(s.n) + "?fallback=false");
   img.onerror = () => { img.remove(); av.textContent = affiche.charAt(0).toUpperCase(); };
   av.appendChild(img);
   const nom = document.createElement("span");
@@ -221,7 +224,8 @@ function afficherSite() {
     if (sec.titre) {
       bloc.innerHTML = "<h2></h2><p class='compteur'></p>";
       bloc.querySelector("h2").textContent = sec.titre;
-      bloc.querySelector(".compteur").textContent = sec.liste.length + (sec.liste.length > 1 ? " chaînes" : " chaîne");
+      if (sec.sansCompteur) bloc.querySelector(".compteur").remove();
+      else bloc.querySelector(".compteur").textContent = sec.liste.length + (sec.liste.length > 1 ? " chaînes" : " chaîne");
     }
     const l = document.createElement("div");
     l.className = "liste";

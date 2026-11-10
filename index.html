@@ -78,7 +78,7 @@
 <main id="ecran-refuse" class="centre" hidden>
   <h1>Accès refusé</h1>
   <p>Tu n'es pas encore autorisé à rentrer sur ce site.</p>
-  <div class="bas"><button class="btn sec" id="btn-logout">Se déconnecter</button></div>
+  <button class="btn sec" id="btn-logout-refuse">Se déconnecter</button>
 </main>
 
 <!-- Site -->
@@ -257,7 +257,7 @@ async function demarrer() {
 
 $("btn-login").onclick = connexion;
 $("btn-logout").onclick = deconnexion;
-$("btn-changer").onclick = () => { deconnexion(); connexion(); };
+$("btn-logout-refuse").onclick = deconnexion;
 $("btn-fermer").onclick = fermer;
 $("modale").addEventListener("cancel", () => { $("modale-lecteur").innerHTML = ""; });
 demarrer();

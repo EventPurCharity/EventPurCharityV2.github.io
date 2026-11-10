@@ -117,7 +117,7 @@
   <div class="barre"><h3 id="modale-titre"></h3><button class="btn sec" id="btn-fermer">Fermer</button></div>
   <section class="ma-video" id="mes-actions" hidden>
     <h2>Ma vidéo pour madamepoulpy</h2>
-    <p>Envoie une petite vidéo (mp4 ou webm, 40 Mo maximum).</p>
+    <p>Envoie une petite vidéo (mp4 ou webm, 200 Mo maximum).</p>
     <input type="file" id="fichier" accept="video/mp4,video/webm">
     <div class="rang">
       <button class="btn" id="btn-envoyer" type="button">Envoyer ma vidéo</button>
@@ -128,13 +128,11 @@
   <div id="modale-lecteur"></div>
 </dialog>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 /* ============ À MODIFIER ============ */
 const TWITCH_CLIENT_ID = "zspgwjxcj4oly6g81eha8gsdixxkrv";
 const REDIRECT_URI = location.origin + location.pathname;   // identique à l'URL enregistrée sur dev.twitch.tv
-const SUPABASE_URL = "https://vnlwtfbuppkrryfhxdhn.supabase.co";        // ex : https://abcdxyz.supabase.co
-const SUPABASE_ANON_KEY = "sb_publishable_nV_JTaauGwbJjx9_j3v0uw_D73hMssT";      // clé publique "anon" / "publishable"
+const WORKER_URL = "https://twitch-videos.crackersmc01.workers.dev";   // ex : https://twitch-videos.ton-compte.workers.dev (sans / à la fin)
 const BLOQUES = ["madamepoulpy_"];                          // pseudos Twitch refusés (en minuscules)
 
 /* n = pseudo Twitch, label = nom affiché (facultatif),
@@ -166,7 +164,7 @@ const montrer = id => ECRANS.forEach(e => $(e).hidden = e !== id);
 
 let TOKEN = null, VIDEOS = {}, MOI = null, COURANT = null;
 async function appel(action, extra) {
-  const r = await fetch(SUPABASE_URL + "/functions/v1/twitch-videos", {
+  const r = await fetch(WORKER_URL + "/" + action, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, token: TOKEN, ...extra })
@@ -328,16 +326,16 @@ const statut = t => { $("statut").textContent = t; };
 async function envoyer() {
   const f = $("fichier").files[0];
   if (!f) return statut("Choisis d'abord une vidéo.");
-  if (f.size > 40 * 1024 * 1024) return statut("Vidéo trop lourde (40 Mo maximum).");
+  if (f.size > 200 * 1024 * 1024) return statut("Vidéo trop lourde (200 Mo maximum).");
   const ext = f.type === "video/webm" ? "webm" : f.type === "video/mp4" ? "mp4" : null;
   if (!ext) return statut("Format accepté : mp4 ou webm.");
   statut("Envoi en cours…");
   $("btn-envoyer").disabled = true;
   try {
-    const { path, token } = await appel("upload-url", { ext });
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { error } = await sb.storage.from("videos").uploadToSignedUrl(path, token, f, { contentType: f.type });
-    if (error) throw error;
+    const { url } = await appel("upload-url", { ext });
+    const r = await fetch(url, { method: "PUT", headers: { "Content-Type": f.type }, body: f });
+    if (!r.ok) throw new Error("envoi refusé (code " + r.status + ")");
+    await appel("done", { ext });
     VIDEOS = (await appel("list")).videos;
     afficherSite();
     ouvrirVideo(COURANT.s, COURANT.affiche);

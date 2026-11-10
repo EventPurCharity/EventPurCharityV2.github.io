@@ -70,6 +70,7 @@
   .ma-video input { max-width:100%; font:inherit; }
   .rang { display:flex; gap:.7rem; flex-wrap:wrap; justify-content:center; }
   .a-video .avatar { border-color:#fff; }
+  dialog .ma-video { margin:0 1.1rem 1rem; max-width:none; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -98,16 +99,6 @@
     <hr>
   </header>
   <main class="conteneur" id="app"></main>
-  <section class="ma-video">
-    <h2>Ma vidéo pour madamepoulpy</h2>
-    <p>Envoie une petite vidéo (mp4 ou webm, 40 Mo maximum).</p>
-    <input type="file" id="fichier" accept="video/mp4,video/webm">
-    <div class="rang">
-      <button class="btn" id="btn-envoyer" type="button">Envoyer ma vidéo</button>
-      <button class="btn sec" id="btn-suppr" type="button">Supprimer ma vidéo</button>
-    </div>
-    <p id="statut" role="status"></p>
-  </section>
   <div class="bas"><button class="btn sec" id="btn-logout">Se déconnecter</button></div>
   <footer>
     <p>100 % des dons sont reversés à l'association <a href="https://lesptitsdoudous.org/" target="_blank" rel="noopener">Les P'tits Doudous</a>.</p>
@@ -124,6 +115,16 @@
 
 <dialog id="modale">
   <div class="barre"><h3 id="modale-titre"></h3><button class="btn sec" id="btn-fermer">Fermer</button></div>
+  <section class="ma-video" id="mes-actions" hidden>
+    <h2>Ma vidéo pour madamepoulpy</h2>
+    <p>Envoie une petite vidéo (mp4 ou webm, 40 Mo maximum).</p>
+    <input type="file" id="fichier" accept="video/mp4,video/webm">
+    <div class="rang">
+      <button class="btn" id="btn-envoyer" type="button">Envoyer ma vidéo</button>
+      <button class="btn sec" id="btn-suppr" type="button">Supprimer ma vidéo</button>
+    </div>
+    <p id="statut" role="status"></p>
+  </section>
   <div id="modale-lecteur"></div>
 </dialog>
 
@@ -163,7 +164,7 @@ const $ = id => document.getElementById(id);
 const ECRANS = ["ecran-login", "ecran-refuse", "ecran-site"];
 const montrer = id => ECRANS.forEach(e => $(e).hidden = e !== id);
 
-let TOKEN = null, VIDEOS = {};
+let TOKEN = null, VIDEOS = {}, MOI = null, COURANT = null;
 async function appel(action, extra) {
   const r = await fetch(SUPABASE_URL + "/functions/v1/twitch-videos", {
     method: "POST",
@@ -235,6 +236,10 @@ function afficherSite() {
 
 /* vidéo */
 function ouvrirVideo(s, affiche) {
+  COURANT = { s, affiche };
+  const dejaOuverte = $("modale").open;
+  $("mes-actions").hidden = s.n.toLowerCase() !== MOI;
+  if (!dejaOuverte) { $("fichier").value = ""; statut(""); }
   $("modale-titre").textContent = affiche;
   const zone = $("modale-lecteur");
   zone.innerHTML = "";
@@ -253,7 +258,7 @@ function ouvrirVideo(s, affiche) {
     el.src = url;
   }
   zone.appendChild(el);
-  $("modale").showModal();
+  if (!dejaOuverte) $("modale").showModal();
 }
 const fermer = () => { $("modale").close(); $("modale-lecteur").innerHTML = ""; };
 
@@ -267,7 +272,7 @@ function connexion() {
   });
 }
 function deconnexion() {
-  TOKEN = null; VIDEOS = {};
+  TOKEN = null; VIDEOS = {}; MOI = null;
   try { sessionStorage.removeItem("twitch_token"); } catch (e) {}
   montrer("ecran-login");
 }
@@ -297,6 +302,7 @@ async function demarrer() {
   try {
     const login = await pseudoTwitch(token);
     if (BLOQUES.includes(login)) return montrer("ecran-refuse");
+    MOI = login;
     VIDEOS = (await appel("list")).videos;
     afficherSite();
     let vu = false;
@@ -329,6 +335,7 @@ async function envoyer() {
     if (error) throw error;
     VIDEOS = (await appel("list")).videos;
     afficherSite();
+    ouvrirVideo(COURANT.s, COURANT.affiche);
     statut("Vidéo envoyée !");
   } catch (e) { statut("Échec de l'envoi : " + (e.message || "réessaie")); }
   $("btn-envoyer").disabled = false;
@@ -339,6 +346,7 @@ async function supprimer() {
     await appel("delete");
     VIDEOS = (await appel("list")).videos;
     afficherSite();
+    ouvrirVideo(COURANT.s, COURANT.affiche);
     statut("Vidéo supprimée.");
   } catch (e) { statut("Échec : " + (e.message || "réessaie")); }
 }

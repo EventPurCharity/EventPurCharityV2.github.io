@@ -133,7 +133,6 @@
 const TWITCH_CLIENT_ID = "zspgwjxcj4oly6g81eha8gsdixxkrv";
 const REDIRECT_URI = location.origin + location.pathname;   // identique à l'URL enregistrée sur dev.twitch.tv
 const WORKER_URL = "https://twitch-videos.crackersmc01.workers.dev";   // ex : https://twitch-videos.ton-compte.workers.dev (sans / à la fin)
-const BLOQUES = ["madamepoulpy_"];                          // pseudos Twitch refusés (en minuscules)
 
 /* n = pseudo Twitch, label = nom affiché (facultatif),
    video = lien YouTube "embed" ou fichier .mp4 (facultatif pour le moment) */
@@ -300,7 +299,6 @@ async function demarrer() {
   TOKEN = token;
   try {
     const login = await pseudoTwitch(token);
-    if (BLOQUES.includes(login)) return refuser();
     MOI = login;
     VIDEOS = (await appel("list")).videos;
     afficherSite();
